@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What You Want to Know</title>
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <style>
+        /* GLOBAL */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            color: #222;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .dark {
+            background-color: #121212;
+            color: #ddd;
+        }
+
+        /* HEADER */
+        header {
+            background: #fff;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e2e2;
+        }
+
+        .dark header {
+            background: #1e1e1e;
+            border-bottom-color: #333;
+        }
+
+        header nav ul {
+            display: flex;
+            gap: 25px;
+            list-style: none;
+            margin: 0;
+        }
+
+        header nav ul li a {
+            text-decoration: none;
+            color: inherit;
+            font-weight: 500;
+        }
+
+        /* SWITCH DARK MODE */
+        .theme-switch {
+            position: relative;
+            width: 55px;
+            height: 28px;
+            display: inline-block;
+        }
+
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: #d1d1d1;
+            border-radius: 34px;
+            transition: 0.4s;
+        }
+
+        .slider::before {
+            content: "\f186";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            left: 3px;
+            bottom: 3px;
+            height: 22px;
+            width: 22px;
+            background: #fff;
+            border-radius: 50%;
+            display: flex;
+            font-size: 12px;
+            justify-content: center;
+            align-items: center;
+            transition: 0.4s;
+        }
+
+        input:checked + .slider {
+            background-color: #4a90e2;
+        }
+
+        input:checked + .slider::before {
+            transform: translateX(27px);
+            content: "\f185"; /* sun icon */
+            background: #fff7b3;
+        }
+
+        /* MAIN */
+        #fan {
+            padding: 130px 20px;
+            text-align: center;
+        }
+
+        #photo {
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        #photo img {
+            border-radius: 10px;
+            max-width: 100%;
+        }
+
+        footer {
+            margin-top: 40px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h3>Syfex</h3>
+
+        <nav>
+            <ul>
+                <li><a href="index.php">Main Page</a></li>
+                <li><a href="conctact.html">Contact</a></li>
+            </ul>
+        </nav>
+
+        <!-- NEW SWITCH DARK MODE -->
+        <label class="theme-switch">
+            <input type="checkbox" id="dark-toggle">
+            <span class="slider"></span>
+        </label>
+    </header>
+
+    <main>
+        <section id="fan">
+            <h1>Welcome on Syfex</h1>
+            <footer>@Syfex, tout droit réservé 2025.</footer>
+        </section>
+
+        <section id="photo">
+            <img src="dark.jpeg" width="500">
+        </section>
+
+        <section id="Contact">
+            <h2></h2>
+        </section>
+    </main>
+
+    <!-- DARK MODE SCRIPT -->
+    <script>
+        const html = document.documentElement;
+        const toggle = document.getElementById("dark-toggle");
+
+        // Load saved theme
+        if (
+            localStorage.theme === "dark" ||
+            (!("theme" in localStorage) &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+            html.classList.add("dark");
+            toggle.checked = true;
+        }
+
+        // Toggle event
+        toggle.addEventListener("change", () => {
+            if (toggle.checked) {
+                html.classList.add("dark");
+                localStorage.theme = "dark";
+            } else {
+                html.classList.remove("dark");
+                localStorage.theme = "light";
+            }
+        });
+    </script>
+
+</body>
+</html>
