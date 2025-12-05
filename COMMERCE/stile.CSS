@@ -1,0 +1,130 @@
+/* Define CSS Variables used in the mobile media query */
+        :root {
+            /* White for secondary background (navbar dropdown background) */
+            --second-bg-color: #ffffff; 
+            /* Indigo-600 for main color (border) */
+            --main-color: #4f46e5; 
+            /* Subtle shadow color */
+            --shadow-color: rgba(0, 0, 0, 0.2); 
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        /* Custom styling for the social icons background */
+        .carte {
+            transition: transform 0.2s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background-color: #4b5563; /* Tailwind gray-600 */
+            color: white;
+            cursor: pointer;
+        }
+        .carte:hover {
+            transform: scale(1.1);
+        }
+        .carte:hover i.fa-facebook-f { background-color: #3b5998; }
+        .carte:hover i.fa-twitter { background-color: #00aced; }
+        .carte:hover i.fa-instagram { background-color: #e4405f; }
+        
+        /* Ensure fluid layout */
+        .container-fluid {
+            width: 100%;
+        }
+
+        /* --- BASE HEADER STYLES (for flex layout) --- */
+        
+        header {
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex; /* Ensure flex behavior */
+            align-items: center;
+            justify-content: space-between;
+            position: relative; /* Needed for absolute positioning of .navbar */
+            padding: 1rem 2%; /* Default desktop padding */
+        }
+        
+        /* Hide mobile-specific elements on desktop */
+        #theme-icon, #menu-icon {
+            display: none;
+        }
+
+
+        /* --- USER PROVIDED MOBILE RESPONSIVENESS CSS (Exact implementation) --- */
+        
+        @media (max-width: 992px) {
+            /* Header padding adjustment */
+            header {
+                padding: 1.5rem 4%;
+            }
+
+            /* Set up icon and logo positions for mobile: Theme (Left) | Logo (Center) | Menu (Right) */
+            header {
+                justify-content: space-between; 
+            }
+            
+            #theme-icon {
+                display: block !important;
+                order: 1; /* Far left position */
+            }
+
+            .logo {
+                order: 2; /* Center position */
+                flex-grow: 1; 
+                text-align: center;
+            }
+
+            #menu-icon {
+                display: block !important;
+                order: 3; /* Far right position */
+            }
+
+            /* Navbar positioning and style for mobile (initially hidden) */
+            .navbar {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                padding: 1rem 3%;
+                background: var(--second-bg-color);
+                border-top: 0.1rem solid var(--main-color);
+                box-shadow: 0 0.5rem 1rem var(--shadow-color);
+                
+                /* Hiding/Transition properties */
+                transform: translateY(-300px); 
+                opacity: 0;
+                transition: transform 0.4s ease, opacity 0.4s ease;
+                pointer-events: none; /* Prevent clicks when hidden */
+                z-index: 10;
+            }
+
+            /* Active state is toggled by JavaScript */
+            .navbar.active {
+                transform: translateY(0);
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            .navbar ul {
+                flex-direction: column; /* Stack links vertically */
+                align-items: flex-start; /* Align links to the left inside the dropdown */
+                text-align: left;
+                padding-bottom: 1rem;
+            }
+
+            .navbar li {
+                margin: 1rem 0;
+                width: 100%; /* Make list items take full width */
+            }
+            
+            /* Hide desktop action buttons that are outside the navbar */
+            .desktop-actions {
+                display: none !important;
+            }
+        }
