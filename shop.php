@@ -68,6 +68,7 @@ $cart_count = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
 
 <header>
     <div class="logo">
+        <i id="goBackBtn" class='bx bx-left-arrow-alt back-btn'></i>
         <h2 class="m-0 fs-4 fw-bold">Premium<span style="color:var(--accent)">Store</span></h2>
     </div>
     <nav>
@@ -136,6 +137,9 @@ $cart_count = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
             alert('Could not connect to server.');
         }
     }
+    document.getElementById('goBackBtn').onclick = function() {
+        window.history.back();
+    };
 </script>
 
 </body>
