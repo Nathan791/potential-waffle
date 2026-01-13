@@ -1,223 +1,210 @@
 <?php
-session_start();
-//check if user is logged in
-if(!isset($_SESSION["email"])){
-    header("Location: /COMMERCE/login.php");
-    exit();
+require "auth.php";
+
+// 1. Centralized Database Connection with Error Handling
+$db_host = "localhost";
+$db_user = "root";
+$db_pass = "";
+$db_name = "commerce";
+
+$connection = new mysqli($db_host, $db_user, $db_pass, $db_name);
+if ($connection->connect_error) {
+    die("Connection failed: " . $connection->connect_error);
+}
+
+// 2. OPTIMIZED: Combined User Stats Query (Single trip to DB)
+$statsResult = $connection->query("
+    SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN r.name = 'admin' THEN 1 ELSE 0 END) as admins,
+        SUM(CASE WHEN r.name = 'user' THEN 1 ELSE 0 END) as clients
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+")->fetch_assoc();
+
+$totalUsers   = $statsResult['total'] ?? 0;
+$totalAdmins  = $statsResult['admins'] ?? 0;
+$totalClients = $statsResult['clients'] ?? 0;
+
+// 3. Sales Data
+$salesQuery = $connection->query("
+    SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, SUM(total) AS total
+    FROM orders WHERE status != 'cancelled'
+    GROUP BY month ORDER BY month ASC
+");
+
+$months = []; $sales = [];
+while ($row = $salesQuery->fetch_assoc()) {
+    $months[] = $row['month'];
+    $sales[] = (float)$row['total'];
+}
+
+// 4. Status Data
+$statusQuery = $connection->query("SELECT status, COUNT(*) AS total FROM orders GROUP BY status");
+$statusLabels = []; $statusValues = [];
+while ($row = $statusQuery->fetch_assoc()) {
+    $statusLabels[] = ucfirst($row['status']);
+    $statusValues[] = (int)$row['total'];
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="styles.css">  
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Admin Dashboard | Commerce</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    
+    <style>
+        .info-box-icon { border-radius: 5px; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        #goBackBtn { font-size: 1.5rem; margin-right: 15px; vertical-align: middle; }
+        .main-sidebar { min-height: 100vh !important; }
+        
+    </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto p-4">
-        <h1 class="text-4xl font-bold mb-6 text-center">Admin Dashboard</h1>
-        <header class="mb-10 flex justify-end">
-    <a href="logout.php" 
-       class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
-        Logout
-    </a>
-    <a href="user-dashboard.php"
-    class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">Users</a>
-</header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-    <canvas id="usersChart" class="bg-white p-4 rounded-lg shadow"></canvas>
-    <canvas id="salesChart" class="bg-white p-4 rounded-lg shadow"></canvas>
-    <canvas id="productsChart" class="bg-white p-4 rounded-lg shadow"></canvas>
-</div>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- User Management Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">User Management</h2>
-                <p class="mb-4">Manage user accounts, roles, and permissions.</p>
-                <a href="user-management.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to User Management</a>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Product Management</h2>
-                <p class="mb-4">Add, edit, and remove products from the catalog.</p>
-                <a href="product-management.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Product Management</a>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Order Management</h2>
-                <p class="mb-4">View and manage customer orders.</p>
-                <a href="order-management.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Order Management</a>
-            </div>
-            <!-- Site Settings Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Site Settings</h2>
-                <p class="mb-4">Configure site-wide settings and preferences.</p>
-                <a href="site-settings.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Site Settings</a>
-            </div>
-            
-            <!-- Reports Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Reports</h2>
-                <p class="mb-4">View and generate site reports.</p>
-                <a href="reports.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Reports</a>
-            </div>
-            <!-- Content Moderation Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Content Moderation</h2>
-                <p class="mb-4">Review and manage user-generated content.</p>
-                <a href="content-moderation.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Content Moderation</a>
-            </div>
-            <!-- System Logs Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">System Logs</h2>
-                <p class="mb-4">View system activity and logs.</p>
-                <a href="system-logs.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to System Logs</a>
-            </div>
-            <!-- Notifications Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Notifications</h2>
-                <p class="mb-4">Manage site notifications and alerts.</p>
-                <a href="notifications.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Notifications</a>  
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+            </li>
+            <li class="nav-item d-none d-sm-inline-block">
+                <span class="nav-link"><strong>Welcome, Admin</strong></span>
+            </li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="user-dashboard.php" class="brand-link">
+            <span class="brand-text font-weight-light ps-3">🛒 COMMERCE</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
+                    <li class="nav-item"><a href="user-dashboard.php" class="nav-link active"><i class="nav-icon fas fa-tachometer-alt"></i> <p>Dashboard</p></a></li>
+                    <li class="nav-item"><a href="orders_management.php" class="nav-link"><i class="nav-icon fas fa-shopping-cart"></i> <p>Orders</p></a></li>
+                    <li class="nav-item"><a href="users.php" class="nav-link"><i class="nav-icon fas fa-users"></i> <p>Users</p></a></li>
+                    <li class="nav-item"><a href="shop_management.php" class="nav-link"><i class="nav-icon fas fa-store"></i> <p>Shop</p></a></li>
+                    <li class="nav-header">ACCOUNT</li>
+                    <li class="nav-item"><a href="logout.php" class="nav-link text-danger"><i class="nav-icon fas fa-sign-out-alt"></i> <p>Logout</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2 align-items-center">
+                    <div class="col-sm-6">
+                        <i id="goBackBtn" class='bx bx-arrow-back cursor-pointer' onclick="history.back()"></i>
+                        <h1 class="m-0"> Dashboard Overview</h1>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <section class="content">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <div class="info-box shadow-sm">
+                            <span class="info-box-icon bg-info elevation-1"><i class="fas fa-users"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Total Users</span>
+                                <span class="info-box-number"><?= $totalUsers ?></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <div class="info-box shadow-sm">
+                            <span class="info-box-icon bg-danger elevation-1"><i class="fas fa-user-shield"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Admins</span>
+                                <span class="info-box-number"><?= $totalAdmins ?></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <div class="info-box shadow-sm">
+                            <span class="info-box-icon bg-success elevation-1"><i class="fas fa-shopping-bag"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Clients</span>
+                                <span class="info-box-number"><?= $totalClients ?></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card card-outline card-primary">
+                            <div class="card-header"><h3 class="card-title">📈 Monthly Sales</h3></div>
+                            <div class="card-body"><canvas id="salesChart" style="min-height: 250px;"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card card-outline card-info">
+                            <div class="card-header"><h3 class="card-title">📦 Order Status</h3></div>
+                            <div class="card-body"><canvas id="statusChart" style="min-height: 250px;"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
-    <script>
-        
 
-        // Sample data for charts
-        const usersData = {
-            labels: ['January', 'February', 'March', 'April', 'May', 'June'],
-            datasets: [{
-                label: 'New Users',
-                data: [50, 75, 150, 100, 200, 250],
-                backgroundColor: 'rgba(59, 130, 246, 0.5)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 1
-            }]
-        };
+    <footer class="main-footer">
+        <strong>&copy; <?= date("Y") ?> Commerce Dashboard.</strong> All rights reserved.
+    </footer>
+</div>
 
-        const salesData = {
-            labels: ['January', 'February', 'March', 'April', 'May', 'June'],
-            datasets: [{
-                label: 'Sales',
-                data: [3000, 4000, 3500, 5000, 6000, 7000],
-                backgroundColor: 'rgba(16, 185, 129, 0.5)',
-                borderColor: 'rgba(16, 185, 129, 1)',
-                borderWidth: 1
-            }]
-        };
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        const productsData = {
-            labels: ['Product A', 'Product B', 'Product C', 'Product D'],
-            datasets: [{
-                label: 'Products Sold',
-                data: [120, 150, 180, 90],
-                backgroundColor: [
-                    'rgba(239, 68, 68, 0.5)',
-                    'rgba(234, 179, 8, 0.5)',
-                    'rgba(14, 165, 233, 0.5)',
-                    'rgba(139, 92, 246, 0.5)'
-                ],
-                borderColor: [
-                    'rgba(239, 68, 68, 1)',
-                    'rgba(234, 179, 8, 1)',
-                    'rgba(14, 165, 233, 1)',
-                    'rgba(139, 92, 246, 1)'
-                ],
-                borderWidth: 1
-            }]
-        };
+<script>
+// Chart Defaults
+Chart.defaults.font.family = 'Arial';
 
-        // Configurations for charts
-        const usersConfig = {
-            type: 'bar',
-            data: usersData,
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        };
+// 📈 Sales Chart
+new Chart(document.getElementById('salesChart'), {
+    type: 'line',
+    data: {
+        labels: <?= json_encode($months) ?>,
+        datasets: [{
+            label: 'Sales ($)',
+            data: <?= json_encode($sales) ?>,
+            borderColor: '#007bff',
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
 
-        const salesConfig = {
-            type: 'line',
-            data: salesData,
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        };
-        const productsConfig = {
-            type: 'doughnut',
-            data: productsData,
-            options: {
-                responsive: true
-            }
-        };
-        // Render charts
-        new Chart(document.getElementById('usersChart'), usersConfig);
-        new Chart(document.getElementById('salesChart'), salesConfig); 
-        new Chart(document.getElementById('productsChart'), productsConfig);
-        // Chart.js setup
-async function renderAdminCharts(){
-  // mock/fallback data
-  const usersData = [12, 19, 3, 5, 2, 3];
-  const salesData = [200, 450, 300, 500, 700, 400];
-  const productsData = [50, 30, 20, 10, 5, 15];
-
-  // fetch from API if available
-  try{
-    const u = await fetch('/api/admin/stats/users').then(r=>r.json());
-    if(u.data) usersData.splice(0, usersData.length, ...u.data);
-  }catch(e){}
-
-  try{
-    const s = await fetch('/api/admin/stats/sales').then(r=>r.json());
-    if(s.data) salesData.splice(0, salesData.length, ...s.data);
-  }catch(e){}
-
-  try{
-    const p = await fetch('/api/admin/stats/products').then(r=>r.json());
-    if(p.data) productsData.splice(0, productsData.length, ...p.data);
-  }catch(e){}
-
-  // Users chart
-  new Chart(document.getElementById('usersChart'), {
-    type:'line',
-    data:{ labels:['Jan','Feb','Mar','Apr','May','Jun'], datasets:[{label:'Users', data:usersData, borderColor:'rgba(79,70,229,1)', backgroundColor:'rgba(79,70,229,0.2)', tension:0.3}] },
-    options:{ responsive:true, plugins:{ legend:{ display:true } } }
-  });
-
-  // Sales chart
-  new Chart(document.getElementById('salesChart'), {
-    type:'bar',
-    data:{ labels:['Jan','Feb','Mar','Apr','May','Jun'], datasets:[{label:'Sales', data:salesData, backgroundColor:'rgba(16,185,129,0.7)'}] },
-    options:{ responsive:true }
-  });
-
-  // Products chart
-  new Chart(document.getElementById('productsChart'), {
-    type:'doughnut',
-    data:{ labels:['In Stock','Low Stock','Out of Stock'], datasets:[{label:'Products', data:productsData.slice(0,3), backgroundColor:['#4f46e5','#f59e0b','#ef4444']}] },
-    options:{ responsive:true }
-  });
-}
-
-// call charts render when admin opens panel
-document.getElementById('open-admin').addEventListener('click', renderAdminCharts);
-
-    </script>
+// 📦 Status Chart
+new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+        labels: <?= json_encode($statusLabels) ?>,
+        datasets: [{
+            data: <?= json_encode($statusValues) ?>,
+            backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d']
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
+</script>
 </body>
 </html>
-

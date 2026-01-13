@@ -1,159 +1,212 @@
 <?php
 session_start();
-//check if user is logged in
-if(!isset($_SESSION["email"])){
+
+// 1. Centralized Auth Check
+if (!isset($_SESSION["email"])) {
     header("Location: /COMMERCE/login.php");
     exit();
 }
-//Initialisation variable
-//connection database
-$db_servername = "localhost";
-$db_username = "root";
-$db_password = "";
-$db_database = "commerce";
-$connection = new mysqli($db_servername, $db_username, $db_password, $db_database);
-if ($connection->connect_error) {
-    die("Connection failed: " . $connection->connect_error);
-}
 
+$userName = htmlspecialchars($_SESSION["name"] ?? 'User');
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Dashboard</title>
-    <link rel="stylesheet" href="styles.css">  
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>User Dashboard | Commerce</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --accent-color: #3498db;
+            --danger-color: #e74c3c;
+            --header-shadow: rgba(0,0,0,0.1);
+        }
+
+        body.dark {
+            --bg-color: #1a1a2e;
+            --text-color: #f4f7f6;
+            --card-bg: #16213e;
+            --accent-color: #4cc9f0;
+            --header-shadow: rgba(0,0,0,0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: background 0.3s ease, color 0.3s ease; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 5%;
+            background: var(--card-bg);
+            box-shadow: 0 2px 10px var(--header-shadow);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-section { display: flex; align-items: center; gap: 15px; }
+
+        /* Desktop Navigation */
+        .navbar { display: flex; align-items: center; gap: 25px; }
+        .navbar a {
+            text-decoration: none;
+            color: var(--text-color);
+            font-weight: 500;
+            position: relative;
+        }
+        .navbar a:hover { color: var(--accent-color); }
+
+        #menu-icon { font-size: 2rem; cursor: pointer; display: none; }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            padding: 40px 5%;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 35px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .card:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.1); }
+        .card i { font-size: 3rem; color: var(--accent-color); margin-bottom: 20px; display: block; }
+        .btn-link { 
+            text-decoration: none; 
+            color: var(--accent-color); 
+            font-weight: 600; 
+            margin-top: 15px; 
+            display: inline-block; 
+        }
+
+        .toggle-btn { cursor: pointer; font-size: 1.4rem; margin-left: 10px; }
+
+        /* Mobile Specific Styles */
+        @media (max-width: 768px) {
+            #menu-icon { display: block; order: 3; }
+            
+            .navbar {
+                position: absolute;
+                top: 100%;
+                right: -100%;
+                width: 250px;
+                height: 100vh;
+                background: var(--card-bg);
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 40px;
+                gap: 30px;
+                transition: 0.4s ease;
+                box-shadow: -5px 0 15px var(--header-shadow);
+            }
+
+            .navbar.active { right: 0; }
+            .text-danger { color: var(--danger-color); }
+        }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto p-4">
-        <h1 class="text-4xl font-bold mb-6 text-center">User Dashboard</h1>
-       <header class="mb-10 flex justify-end">
-    <a href="logout.php" 
-       class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
-        Logout
-    </a>
-    <a href="admin-dashboard.php"
-        class="ml-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors">
-        Admin Dashboard
-    </a>
-    <script>
-        //verify if user is admin to show admin dashboard link
-        <?php if($_SESSION['role'] !== 'admin'): ?>
-            document.querySelector('a[href="admin-dashboard.php"]').style.display = 'none';
-        <?php endif; ?>
-    </script>
+<body>
+
+<header>
+    <div class="logo-section">
+        <i id="goBackBtn" class='bx bx-left-arrow-alt' style="cursor:pointer; font-size: 1.8rem;"></i>
+        <h2>Dashboard</h2>
+    </div>
+    
+    <nav class="navbar">
+        <span>Hi, <strong><?= $userName ?></strong></span>
+        <a href="/COMMERCE/profile.php">Profile</a>
+        <a href="/COMMERCE/cart.php">My Cart</a>
+        <a href="/COMMERCE/logout.php" class="text-danger">Logout</a>
+        <span class="toggle-btn" id="themeToggle">🌙</span>
+    </nav>
+
+    <i class='bx bx-menu' id="menu-icon"></i>
 </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Profile Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Profile</h2>
-                <p class="mb-4">View and edit your profile information.</p>
-                <a href="profile.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Profile</a>
-            </div>
-            <!-- Orders Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Orders</h2>
-                <p class="mb-4">View your order history and status.</p>
-                <a href="orders.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Orders</a>
-            </div>
-            <!-- Settings Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Settings</h2>
-                <p class="mb-4">Manage your account settings and preferences.</p>
-                <a href="settings.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Settings</a>
-            </div>
-            <!-- Support Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Support</h2>
-                <p class="mb-4">Get help and support for your account.</p>
-                <a href="support.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Support</a>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">Content-Moderation</h2>
-                <p class="mb-4">Review and manage user-generated content.</p>
-                <a href="content-moderation.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to Content Moderation</a>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <h2 class="text-2xl font-semibold mb-4">System Logs</h2>
-                <p class="mb-4">View system activity and logs.</p>
-                <a href="system-logs.php" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">Go to System Logs</a>
-            </div>
-        </div>
-        <div>
-            <h2 class="text-2xl font-semibold mb-4 mt-10 text-center">Buy Your Product</h2>
-            <a href="shop.php" class="inline-block bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors mx-auto block">Go to Shop</a>
-        </div>
-        <div>
-            <h2 class="text-2xl font-semibold mb-4 mt-10 text-center">Notifications</h2>
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <ul class="space-y-4">
-                    <?php
-                    // Fetch notifications from database
-                    $query = "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC";
-                    $stmt = $connection->prepare($query);
-                    $stmt->bind_param("i", $_SESSION["user_id"]);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
+<main class="grid">
+    <div class="card">
+        <i class='bx bx-shopping-bag'></i>
+        <h4>My Orders</h4>
+        <p>Track shipments and view past purchases.</p>
+        <a href="/Commerce/order_history.php" class="btn-link">History &rarr;</a>
+    </div>
 
-                    if ($result->num_rows > 0) {
-                        while ($row = $result->fetch_assoc()) {
-                            echo "<li class='p-4 border-b hover:bg-gray-50 transition-colors'>";
-                            echo "<strong>" . htmlspecialchars($row['title']) . "</strong><br>";
-                            echo "<span class='text-gray-600'>" . htmlspecialchars($row['message']) . "</span>";
-                            echo "<form method='POST' action='read_notifications.php' class='mt-2'>";
-                            echo "<input type='hidden' name='id' value='" . htmlspecialchars($row['id']) . "'>";
-                            echo "<button type='submit' class='text-blue-500 hover:underline'>Mark as Read</button>";
-                            echo "</form>";
-                            echo "</li>";
-                        }
-                    } else {
-                        echo "<li class='p-4 text-gray-600'>No notifications found.</li>";
-                    }
-                    ?>
-                </ul>
-        </div>
-        <div class="mt-10 text-center">
-            <canvas id="activityChart" class="mx-auto" width="400" height="200"></canvas>
-        </div>
-        <script>
-            const ctx = document.getElementById('activityChart').getContext('2d');
-            const activityChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
-                    datasets: [{
-                        label: 'User Activity',
-                        data: [12, 19, 3, 5, 2, 3, 7],
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        </script>
-        <div class="mt-10 text-center text-gray-600">
-            &copy; <?php echo date("Y"); ?> Commerce Platform. All rights reserved.
+    <div class="card">
+        <i class='bx bx-store-alt'></i>
+        <h4>Shop</h4>
+        <p>Discover new arrivals and top deals.</p>
+        <a href="/COMMERCE/shop.php" class="btn-link">Go to Shop &rarr;</a>
     </div>
+
+    <div class="card">
+        <i class='bx bx-heart-circle'></i>
+        <h4>Wishlist</h4>
+        <p>Save items you love for later.</p>
+        <a href="wishlist.php" class="btn-link">View Saved &rarr;</a>
     </div>
-    <div class="fixed bottom-4 right-4">
-        <a href="help.php" class="bg-green-500 text-white px-4 py-2 rounded-full shadow-lg hover:bg-green-600 transition-colors">
-            Help   
-        </a>
+
+    <div class="card">
+        <i class='bx bx-user-voice'></i>
+        <h4>Settings</h4>
+        <p>Manage privacy and account security.</p>
+        <a href="settings.php" class="btn-link">Manage &rarr;</a>
     </div>
+</main>
+
+<script>
+    // Theme Logic
+    const body = document.body;
+    const themeToggle = document.getElementById('themeToggle');
+    const currentTheme = localStorage.getItem("theme");
+
+    if (currentTheme === "dark") {
+        body.classList.add("dark");
+        themeToggle.textContent = "☀️";
+    }
+
+    themeToggle.onclick = () => {
+        body.classList.toggle("dark");
+        const isDark = body.classList.contains("dark");
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+        themeToggle.textContent = isDark ? "☀️" : "🌙";
+    };
+
+    // Mobile Menu Toggle Logic
+    const menuIcon = document.querySelector('#menu-icon');
+    const navbar = document.querySelector('.navbar');
+
+    menuIcon.onclick = () => {
+        menuIcon.classList.toggle('bx-x');
+        navbar.classList.toggle('active');
+    };
+
+    // Close menu when clicking outside or on a link
+    window.onscroll = () => {
+        menuIcon.classList.remove('bx-x');
+        navbar.classList.remove('active');
+    };
+
+    document.getElementById('goBackBtn').onclick = () => window.history.back();
+</script>
 
 </body>
 </html>

@@ -1,126 +1,142 @@
 <?php
 session_start();
+require_once 'db.php';
 
-// Check if user is logged in
-if (!isset($_SESSION["email"])) {
-    header("Location: /COMMERCE/login.php");
-    exit();
+// 1. Fetch Products that are in stock
+try {
+    $query = "
+        SELECT p.id, p.name, p.price, p.stock, pi.image_path 
+        FROM products p 
+        LEFT JOIN (
+            SELECT product_id, MIN(image_path) as image_path 
+            FROM product_images 
+            GROUP BY product_id
+        ) pi ON p.id = pi.product_id
+        WHERE p.stock > 0 
+        ORDER BY p.id DESC";
+    
+    $result = $db->query($query);
+} catch (Exception $e) {
+    error_log($e->getMessage());
+    $error = "Unable to load products.";
 }
 
-// Database connection
-$db_servername = "localhost";
-$db_username = "root";
-$db_password = "";
-$db_database = "commerce";
-
-$connection = new mysqli($db_servername, $db_username, $db_password, $db_database);
-
-if ($connection->connect_error) {
-    die("Connection failed: " . $connection->connect_error);
-}
-
-// Check for successful 'Add to Cart' action and display a message (Optional)
-$message = '';
-if (isset($_SESSION['add_success'])) {
-    $message = '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
-                    <p class="font-bold">Success!</p>
-                    <p>' . htmlspecialchars($_SESSION['add_success']) . ' has been added to your cart.</p>
-                </div>';
-    unset($_SESSION['add_success']);
-}
+// Calculate cart count for the header badge
+$cart_count = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop - Browse Products</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    </head>
+    <title>Premium Store | Shop</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        :root { --main-bg: #f4f7f6; --nav-bg: #1f242d; --accent: #00eeff; }
+        body { font-family: 'Poppins', sans-serif; background: var(--main-bg); padding-top: 90px; }
+        
+        header { 
+            position: fixed; top: 0; width: 100%; z-index: 1000;
+            background: var(--nav-bg); color: #fff; padding: 15px 5%;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
 
-<body class="bg-gray-100">
-    <div class="container mx-auto p-4">
+        .product-card { 
+            border: none; border-radius: 15px; background: #fff; 
+            transition: transform 0.3s, box-shadow 0.3s; height: 100%;
+            overflow: hidden;
+        }
+        .product-card:hover { transform: translateY(-10px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        
+        .img-wrapper { position: relative; width: 100%; padding-top: 100%; background: #eee; }
+        .img-wrapper img { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            object-fit: cover; 
+        }
 
-        <header class="mb-10 flex justify-between items-center">
-            <h1 class="text-4xl font-extrabold text-gray-800">🛍️ Product Marketplace</h1>
-            <div class="space-x-4 flex items-center">
-                <a href="cart.php" 
-                   class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center">
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                   </svg>
-                   View Cart
-                </a>
-                <a href="logout.php" 
-                   class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition">
-                    Logout 
-                </a>
-            </div>
-        </header>
+        .price-tag { color: #27ae60; font-weight: 600; font-size: 1.1rem; }
+        .btn-add { background: var(--nav-bg); color: #fff; border-radius: 25px; font-weight: 600; transition: 0.3s; border: none; }
+        .btn-add:hover { background: var(--accent); color: var(--nav-bg); }
+        
+        .badge-cart { font-size: 0.7rem; padding: 3px 6px; }
+    </style>
+</head>
+<body>
 
-        <?php echo $message; ?>
-
-        <div class="bg-white p-6 rounded-lg shadow-xl">
-            <h2 class="text-3xl font-semibold mb-6 border-b pb-3">Available Products</h2>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                
-                <?php
-                // Fetch products
-                $query = "SELECT * FROM products ORDER BY id DESC";
-                $result = $connection->query($query);
-
-                if ($result->num_rows > 0) {
-                    while ($row = $result->fetch_assoc()) {
-                        $product_id = htmlspecialchars($row['id']);
-                        $name = htmlspecialchars($row['name']);
-                        $description = htmlspecialchars($row['description'] ?? "No description available.");
-                        $price = number_format($row['price'], 2);
-                        $stock = htmlspecialchars($row['stock']);
-                        // Assuming 'image' column holds a URL or path
-                        $image_url = htmlspecialchars($row['image'] ?? "https://via.placeholder.com/400x300?text=Product+Image");
-                        $is_in_stock = $stock > 0;
-                        
-                        echo '
-                        <div class="bg-white border rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                            <img src="' . $image_url . '" alt="' . $name . '" class="w-full h-48 object-cover">
-                            
-                            <div class="p-5">
-                                <h3 class="text-xl font-bold mb-2">' . $name . '</h3>
-                                
-                                <p class="text-gray-600 mb-3 text-sm">' . substr($description, 0, 70) . '...</p>
-                                
-                                <div class="flex justify-between items-center mb-4">
-                                    <span class="text-2xl font-extrabold text-indigo-600">$ ' . $price . '</span>
-                                    
-                                    <span class="text-xs font-semibold px-2 py-1 rounded-full ' . ($is_in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800') . '">
-                                        ' . ($is_in_stock ? 'In Stock (' . $stock . ')' : 'Sold Out') . '
-                                    </span>
-                                </div>
-                                
-                                <form action="cart.php" method="GET">
-                                    <input type="hidden" name="add_id" value="' . $product_id . '">
-                                    <button type="submit" 
-                                            class="w-full px-4 py-2 text-white font-semibold rounded-lg transition ' . ($is_in_stock ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed') . '"
-                                            ' . ($is_in_stock ? '' : 'disabled') . '>
-                                        ' . ($is_in_stock ? 'Add to Cart' : 'Out of Stock') . '
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                        ';
-                    }
-                } else {
-                    echo '
-                    <div class="col-span-full text-center py-10">
-                        <p class="text-xl text-gray-500">No products are currently listed in the shop.</p>
-                    </div>
-                    ';
-                }
-                ?>
-            </div>
-            
-        </div>
+<header>
+    <div class="logo">
+        <h2 class="m-0 fs-4 fw-bold">Premium<span style="color:var(--accent)">Store</span></h2>
     </div>
+    <nav>
+        <a href="cart.php" class="text-white text-decoration-none position-relative">
+            <i class='bx bx-shopping-bag fs-3'></i>
+            <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger badge-cart">
+                <?= $cart_count ?>
+            </span>
+        </a>
+    </nav>
+</header>
+
+<div class="container mb-5">
+    <div class="row g-4">
+        <?php if ($result && $result->num_rows > 0): ?>
+            <?php while ($product = $result->fetch_assoc()): ?>
+                <div class="col-6 col-md-4 col-lg-3">
+                    <div class="card product-card shadow-sm">
+                        <div class="img-wrapper">
+                            <img src="<?= htmlspecialchars($product['image_path'] ?? 'assets/placeholder.jpg') ?>" 
+                                 onerror="this.src='https://via.placeholder.com/300x300?text=No+Image'"
+                                 alt="<?= htmlspecialchars($product['name']) ?>">
+                        </div>
+                        <div class="card-body d-flex flex-column">
+                            <h6 class="text-truncate mb-1"><?= htmlspecialchars($product['name']) ?></h6>
+                            <p class="price-tag mb-3">$<?= number_format($product['price'], 2) ?></p>
+                            <button class="btn btn-add w-100 mt-auto py-2" onclick="addToCart(<?= $product['id'] ?>)">
+                                <i class='bx bx-plus-circle'></i> Buy Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            <?php endwhile; ?>
+        <?php else: ?>
+            <div class="col-12 text-center py-5">
+                <i class='bx bx-search-alt fs-1 text-muted'></i>
+                <p class="mt-3">No products available at the moment.</p>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<script>
+    async function addToCart(id) {
+        try {
+            const response = await fetch('ajax/cart_add.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, qty: 1 })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update badge without refresh
+                const badge = document.getElementById('cart-badge');
+                badge.innerText = parseInt(badge.innerText) + 1;
+                
+                // Optional: Provide visual feedback
+                alert('Product added to cart!');
+            } else {
+                alert(data.message || 'Error adding to cart');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Could not connect to server.');
+        }
+    }
+</script>
+
 </body>
 </html>

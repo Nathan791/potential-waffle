@@ -1,78 +1,64 @@
 <?php
 session_start();
 
-// If user already logged in, redirect based on role
-if(isset($_SESSION["role"])) {
-    if($_SESSION["role"] === "admin"){
-        header("Location: /COMMERCE/admin-dashboard.php");
-        exit();
-    } else {
-        header("Location: /COMMERCE/user-dashboard.php");
-        exit();
-    }
+// 1. Centralized Configuration
+$config = [
+    'db_host' => 'localhost',
+    'db_user' => 'root',
+    'db_pass' => '',
+    'db_name' => 'commerce',
+    'admin_path' => '/COMMERCE/admin-dashboard.php',
+    'user_path'  => '/COMMERCE/user-dashboard.php'
+];
+
+// 2. Redirect if already logged in
+if (isset($_SESSION["role"])) {
+    $redirect = ($_SESSION["role"] === "admin") ? $config['admin_path'] : $config['user_path'];
+    header("Location: $redirect");
+    exit();
 }
 
-$errormessage = "";
+$errorMessage = "";
 
+// 3. Handle Login Logic
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-
-    $email = trim($_POST["email"] ?? "");
+    $email = filter_var(trim($_POST["email"] ?? ""), FILTER_SANITIZE_EMAIL);
     $password = $_POST["password"] ?? "";
 
-    if(empty($email) || empty($password)){
-        $errormessage = "Email and password are required.";
+    if (empty($email) || empty($password)) {
+        $errorMessage = "Please fill in all fields.";
     } else {
+        try {
+            $db = new mysqli($config['db_host'], $config['db_user'], $config['db_pass'], $config['db_name']);
+            $db->set_charset("utf8mb4");
 
-        // DB connection
-        $db = new mysqli("localhost", "root", "", "commerce");
+            $stmt = $db->prepare("SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-        if ($db->connect_error) {
-            die("Database connection failed: " . $db->connect_error);
-        }
+            if ($user = $result->fetch_assoc()) {
+                if (password_verify($password, $user["password"])) {
+                    // Prevent Session Fixation
+                    session_regenerate_id(true);
 
-        // Get user including the role
-        $id = null;
-        $name = "";
-        $pnumber = "";
-        $db_email = "";
-        $db_password = ""; // <-- ensure string type for static analyzer
+                    $_SESSION["id"]    = $user["id"];
+                    $_SESSION["name"]  = $user["name"];
+                    $_SESSION["email"] = $user["email"];
+                    $_SESSION["role"]  = $user["role"];
 
-        $stmt = $db->prepare("SELECT id, name, pnumber, email, password, role FROM shop WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-
-        $stmt->bind_result($id, $name, $pnumber, $db_email, $db_password, $role);
-
-        if ($stmt->fetch()) {
-
-            // validate that $db_password is a non-empty string before verifying
-            if (!is_string($db_password) || $db_password === '') {
-                $errormessage = "Invalid email or password.";
-            } elseif (password_verify($password, $db_password)) {
-                // Store session data
-                $_SESSION["id"] = $id;
-                $_SESSION["name"] = $name;
-                $_SESSION["pnumber"] = $pnumber;
-                $_SESSION["email"] = $db_email;
-                $_SESSION["role"] = $role;
-
-                // Redirect based on role
-                if($role === "admin"){
-                    header("Location: /COMMERCE/admin-dashboard.php");
-                } else {
-                    header("Location: /COMMERCE/user-dashboard.php");
+                    $redirect = ($user["role"] === "admin") ? $config['admin_path'] : $config['user_path'];
+                    header("Location: $redirect");
+                    exit();
                 }
-                exit();
-            } else {
-                $errormessage = "Invalid email or password.";
             }
-
-        } else {
-            $errormessage = "Invalid email or password.";
+            $errorMessage = "Invalid email or password.";
+            $stmt->close();
+            $db->close();
+        } catch (Exception $e) {
+            error_log($e->getMessage()); // Log error to server, don't show user sensitive info
+            $errorMessage = "A connection error occurred. Please try again later.";
         }
-
-        $stmt->close();
-        $db->close();
     }
 }
 ?>
@@ -81,44 +67,47 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Sign-In | Commerce</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .login-container { max-width: 400px; margin-top: 100px; }
+        .card { border: none; border-radius: 1rem; box-shadow: 0 0.5rem 1rem 0 rgba(0, 0, 0, 0.1); }
+    </style>
 </head>
+<body>
 
-<body class="bg-gray-100">
-<div class="max-w-md mx-auto mt-20 p-8 bg-white rounded shadow">
+<div class="container login-container">
+    <div class="card p-4">
+        <h2 class="text-center fw-bold mb-4">Login</h2>
 
-    <h2 class="text-3xl font-bold text-center mb-6">Login</h2>
+        <?php if (!empty($errorMessage)): ?>
+            <div class="alert alert-danger py-2 small"><?= htmlspecialchars($errorMessage) ?></div>
+        <?php endif; ?>
 
-    <?php if(!empty($errormessage)): ?>
-        <div class="alert alert-danger"><?= htmlspecialchars($errormessage) ?></div>
-    <?php endif; ?>
+        <form method="POST" autocomplete="off">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Email Address</label>
+                <input type="email" name="email" class="form-control" 
+                       value="<?= htmlspecialchars($email ?? '') ?>" required>
+            </div>
 
-    <form method="POST" class="space-y-4">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Password</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
 
-        <div>
-            <label class="block font-medium">Email</label>
-            <input class="form-control" type="email" name="email" required>
-        </div>
+            <div class="d-grid gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Sign In</button>
+            </div>
 
-        <div>
-            <label class="block font-medium">Password</label>
-            <input class="form-control" type="password" name="password" required>
-        </div>
-
-        <div class="pt-4">
-            <button type="submit" class="btn btn-primary w-full">Login</button>
-        </div>
-
-        <p class="text-center text-sm mt-4">
-            Don’t have an account?
-            <a href="/COMMERCE/create.php" class="text-blue-600">Register</a>
-        </p>
-
-    </form>
-
+            <p class="text-center mt-4 mb-0">
+                Don’t have an account? 
+                <a href="/COMMERCE/create_users.php" class="text-decoration-none">Sign Up</a>
+            </p>
+        </form>
+    </div>
 </div>
+
 </body>
 </html>
